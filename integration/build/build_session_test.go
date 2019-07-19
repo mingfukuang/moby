@@ -3,6 +3,7 @@ package build
 import (
 	"context"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"strings"
 	"testing"
@@ -21,13 +22,19 @@ import (
 )
 
 func TestBuildWithSession(t *testing.T) {
-	skip.If(t, testEnv.IsRemoteDaemon, "cannot run daemon when remote daemon")
 	skip.If(t, testEnv.DaemonInfo.OSType == "windows")
-	d := daemon.New(t, daemon.WithExperimental)
-	d.StartWithBusybox(t)
-	defer d.Stop(t)
 
-	client := testEnv.APIClient()
+	var client dclient.APIClient
+	if !testEnv.DaemonInfo.ExperimentalBuild {
+		skip.If(t, testEnv.IsRemoteDaemon, "cannot run daemon when remote daemon")
+
+		d := daemon.New(t, daemon.WithExperimental)
+		d.StartWithBusybox(t)
+		defer d.Stop(t)
+		client = d.NewClientT(t)
+	} else {
+		client = testEnv.APIClient()
+	}
 
 	dockerfile := `
 		FROM busybox
@@ -103,7 +110,9 @@ func testBuildWithSession(t *testing.T, client dclient.APIClient, daemonHost str
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return sess.Run(ctx, client.DialSession)
+		return sess.Run(ctx, func(ctx context.Context, proto string, meta map[string][]string) (net.Conn, error) {
+			return client.DialHijack(ctx, "/session", "h2c", meta)
+		})
 	})
 
 	g.Go(func() error {

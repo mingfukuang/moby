@@ -49,7 +49,7 @@ func MinimumAPIVersion(version string) func() bool {
 }
 
 func OnlyDefaultNetworks() bool {
-	cli, err := client.NewEnvClient()
+	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		return false
 	}
@@ -58,11 +58,6 @@ func OnlyDefaultNetworks() bool {
 		return false
 	}
 	return true
-}
-
-// Deprecated: use skip.If(t, !testEnv.DaemonInfo.ExperimentalBuild)
-func ExperimentalDaemon() bool {
-	return testEnv.DaemonInfo.ExperimentalBuild
 }
 
 func IsAmd64() bool {
@@ -81,20 +76,8 @@ func NotPpc64le() bool {
 	return ArchitectureIsNot("ppc64le")
 }
 
-func NotS390X() bool {
-	return ArchitectureIsNot("s390x")
-}
-
-func SameHostDaemon() bool {
-	return testEnv.IsLocalDaemon()
-}
-
 func UnixCli() bool {
 	return isUnixCli
-}
-
-func ExecSupport() bool {
-	return supportsExec
 }
 
 func Network() bool {
@@ -174,13 +157,6 @@ func IsPausable() bool {
 		return testEnv.DaemonInfo.Isolation == "hyperv"
 	}
 	return true
-}
-
-func NotPausable() bool {
-	if testEnv.OSType == "windows" {
-		return testEnv.DaemonInfo.Isolation == "process"
-	}
-	return false
 }
 
 func IsolationIs(expectedIsolation string) bool {

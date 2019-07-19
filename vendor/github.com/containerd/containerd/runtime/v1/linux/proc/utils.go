@@ -20,9 +20,12 @@ package proc
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/containerd/containerd/errdefs"
@@ -30,6 +33,18 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 )
+
+// safePid is a thread safe wrapper for pid.
+type safePid struct {
+	sync.Mutex
+	pid int
+}
+
+func (s *safePid) get() int {
+	s.Lock()
+	defer s.Unlock()
+	return s.pid
+}
 
 // TODO(mlaventure): move to runc package?
 func getLastRuntimeError(r *runc.Runc) (string, error) {
@@ -101,6 +116,29 @@ func checkKillError(err error) error {
 	return errors.Wrapf(err, "unknown error after kill")
 }
 
-func hasNoIO(r *CreateConfig) bool {
-	return r.Stdin == "" && r.Stdout == "" && r.Stderr == ""
+// InitPidFile name of the file that contains the init pid
+const InitPidFile = "init.pid"
+
+func newPidFile(bundle string) *pidFile {
+	return &pidFile{
+		path: filepath.Join(bundle, InitPidFile),
+	}
+}
+
+func newExecPidFile(bundle, id string) *pidFile {
+	return &pidFile{
+		path: filepath.Join(bundle, fmt.Sprintf("%s.pid", id)),
+	}
+}
+
+type pidFile struct {
+	path string
+}
+
+func (p *pidFile) Path() string {
+	return p.path
+}
+
+func (p *pidFile) Read() (int, error) {
+	return runc.ReadPidFile(p.path)
 }
